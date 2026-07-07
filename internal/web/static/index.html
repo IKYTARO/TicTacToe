@@ -1,0 +1,166 @@
+<!DOCTYPE html>
+<html lang="ru">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Крестики-Нолики</title>
+    <style>
+        * { margin: 0; padding: 0; box-sizing: border-box; }
+        body {
+            font-family: Arial, sans-serif;
+            display: flex;
+            flex-direction: column;
+            align-items: center;
+            padding-top: 40px;
+            background: #1a1a2e;
+            color: #eee;
+        }
+        h1 { margin-bottom: 20px; }
+        #status {
+            font-size: 1.2em;
+            margin-bottom: 20px;
+            height: 1.5em;
+        }
+        #board {
+            display: grid;
+            grid-template-columns: repeat(3, 80px);
+            grid-template-rows: repeat(3, 80px);
+            gap: 6px;
+            margin-bottom: 20px;
+        }
+        .cell {
+            background: #16213e;
+            border: 2px solid #0f3460;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            font-size: 2em;
+            cursor: pointer;
+            transition: background 0.2s;
+        }
+        .cell:hover { background: #1a3a5c; }
+        .cell.x { color: #e94560; }
+        .cell.o { color: #4ea8de; }
+        #new-game {
+            padding: 10px 30px;
+            font-size: 1em;
+            background: #e94560;
+            color: white;
+            border: none;
+            border-radius: 6px;
+            cursor: pointer;
+        }
+        #new-game:hover { background: #c73652; }
+    </style>
+</head>
+<body>
+<h1>Крестики-Нолики</h1>
+<div id="status">Нажмите «Новая игра»</div>
+
+<div id="board">
+    <div class="cell" data-row="0" data-col="0"></div>
+    <div class="cell" data-row="0" data-col="1"></div>
+    <div class="cell" data-row="0" data-col="2"></div>
+    <div class="cell" data-row="1" data-col="0"></div>
+    <div class="cell" data-row="1" data-col="1"></div>
+    <div class="cell" data-row="1" data-col="2"></div>
+    <div class="cell" data-row="2" data-col="0"></div>
+    <div class="cell" data-row="2" data-col="1"></div>
+    <div class="cell" data-row="2" data-col="2"></div>
+</div>
+
+<button id="new-game">Новая игра</button>
+
+<script>
+    const BASE = '/game';
+    let gameId = null;
+    let board = [
+        [0, 0, 0],
+        [0, 0, 0],
+        [0, 0, 0]
+    ];
+    let gameOver = false;
+
+    const statusEl = document.getElementById('status');
+    const boardEl = document.getElementById('board');
+    const cells = document.querySelectorAll('.cell');
+
+    function renderBoard() {
+        cells.forEach(cell => {
+            const r = +cell.dataset.row;
+            const c = +cell.dataset.col;
+            const val = board[r][c];
+            cell.textContent = val === 1 ? '✕' : val === 2 ? '◯' : '';
+            cell.className = 'cell';
+            if (val === 1) cell.classList.add('x');
+            if (val === 2) cell.classList.add('o');
+        });
+    }
+
+    function setStatus(text) {
+        statusEl.textContent = text;
+    }
+
+    async function newGame() {
+        const resp = await fetch(BASE + '/', { method: 'POST' });
+        const data = await resp.json();
+        gameId = data.id;
+        board = data.board;
+        gameOver = false;
+        setStatus('Ваш ход (✕)');
+        renderBoard();
+    }
+
+    async function makeMove(row, col) {
+        if (gameOver) return;
+        if (board[row][col] !== 0) return;
+
+        const newBoard = board.map(r => [...r]);
+        newBoard[row][col] = 1;
+
+        const resp = await fetch(BASE + '/' + gameId, {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({ board: newBoard })
+        });
+
+        if (!resp.ok) {
+            const err = await resp.json();
+            setStatus('Ошибка: ' + err.error);
+            return;
+        }
+
+        const data = await resp.json();
+        board = data.board;
+        renderBoard();
+
+        switch (data.status) {
+            case 'cross_won':
+                setStatus('Вы выиграли! ✕');
+                gameOver = true;
+                break;
+            case 'nought_won':
+                setStatus('Компьютер выиграл! ◯');
+                gameOver = true;
+                break;
+            case 'draw':
+                setStatus('Ничья!');
+                gameOver = true;
+                break;
+            default:
+                setStatus('Ваш ход (✕)');
+        }
+    }
+
+    boardEl.addEventListener('click', e => {
+        const cell = e.target.closest('.cell');
+        if (!cell) return;
+        const row = +cell.dataset.row;
+        const col = +cell.dataset.col;
+        makeMove(row, col);
+    });
+
+    document.getElementById('new-game').addEventListener('click', newGame);
+</script>
+</body>
+</html>
